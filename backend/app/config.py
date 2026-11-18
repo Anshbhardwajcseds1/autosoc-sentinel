@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import ipaddress
 import json
+import os
 from functools import lru_cache
-from typing import List, Union
+from typing import List, Optional, Union
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings
@@ -22,7 +23,7 @@ class Settings(BaseSettings):
     virustotal_api_key: str = ""
     abuseipdb_api_key: str = ""
 
-    # Mode
+    # Mode - Enabled by default for free/serverless deployments
     mock_mode: bool = True
     llm_mock_mode: bool = True
 
@@ -32,17 +33,20 @@ class Settings(BaseSettings):
     # Logging
     log_level: str = "INFO"
 
-    # CORS
-    cors_origins: Union[List[str], str] = ["http://localhost:5173", "http://localhost:3000"]
+    # CORS - Default to allow all origins and Vercel deployments
+    cors_origins: Union[List[str], str] = ["*"]
 
     @field_validator("cors_origins", mode="before")
     @classmethod
     def parse_cors(cls, v):
         if isinstance(v, str):
             try:
-                return json.loads(v)
+                parsed = json.loads(v)
+                if isinstance(parsed, list):
+                    return parsed
             except Exception:
-                return [s.strip() for s in v.split(",") if s.strip()]
+                pass
+            return [s.strip() for s in v.split(",") if s.strip()]
         return v
 
     # Allowlist
@@ -76,9 +80,22 @@ class Settings(BaseSettings):
             return [s.strip() for s in v.split(",") if s.strip()]
         return v
 
-    # API
+    # API Server & Port (Supports Render's $PORT env var)
     api_host: str = "0.0.0.0"
     api_port: int = 8000
+    port: Optional[int] = None  # Populated from Render's PORT env var
+
+    @property
+    def server_port(self) -> int:
+        if self.port:
+            return self.port
+        env_port = os.environ.get("PORT")
+        if env_port:
+            try:
+                return int(env_port)
+            except ValueError:
+                pass
+        return self.api_port
 
     # Private network ranges that must never be blocked
     @property

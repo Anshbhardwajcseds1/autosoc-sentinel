@@ -5,6 +5,19 @@ import { IncidentQueue } from './components/IncidentQueue';
 import { IncidentDetail } from './components/IncidentDetail';
 import { DashboardStats, IncidentDetail as IncidentDetailType, IncidentSummary } from './types';
 
+// Read API URL from environment variable, defaulting to http://localhost:8000
+const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '');
+
+function getWebSocketUrl(): string {
+  if (API_BASE.startsWith('http://') || API_BASE.startsWith('https://')) {
+    const wsProto = API_BASE.startsWith('https://') ? 'wss:' : 'ws:';
+    const host = API_BASE.replace(/^https?:\/\//i, '');
+    return `${wsProto}//${host}/ws/events`;
+  }
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${protocol}//${window.location.host}/ws/events`;
+}
+
 export const App: React.FC = () => {
   const [incidents, setIncidents] = useState<IncidentSummary[]>([]);
   const [selectedIncident, setSelectedIncident] = useState<IncidentDetailType | null>(null);
@@ -21,7 +34,7 @@ export const App: React.FC = () => {
 
   const fetchStats = async () => {
     try {
-      const res = await fetch('/api/stats');
+      const res = await fetch(`${API_BASE}/api/stats`);
       if (res.ok) {
         const data = await res.json();
         setStats(data);
@@ -33,11 +46,10 @@ export const App: React.FC = () => {
 
   const fetchIncidents = async () => {
     try {
-      const res = await fetch('/api/incidents');
+      const res = await fetch(`${API_BASE}/api/incidents`);
       if (res.ok) {
         const data: IncidentSummary[] = await res.json();
         setIncidents(data);
-        // Automatically select first incident if none selected
         if (!selectedIdRef.current && data.length > 0) {
           handleSelectIncident(data[0].id);
         }
@@ -49,7 +61,7 @@ export const App: React.FC = () => {
 
   const fetchIncidentDetail = async (id: string) => {
     try {
-      const res = await fetch(`/api/incidents/${id}`);
+      const res = await fetch(`${API_BASE}/api/incidents/${id}`);
       if (res.ok) {
         const data: IncidentDetailType = await res.json();
         setSelectedIncident(data);
@@ -71,38 +83,40 @@ export const App: React.FC = () => {
     let reconnectTimeout: any = null;
 
     const connectWS = () => {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/ws/events`;
-      ws = new WebSocket(wsUrl);
+      const wsUrl = getWebSocketUrl();
+      try {
+        ws = new WebSocket(wsUrl);
 
-      ws.onopen = () => {
-        setWsConnected(true);
-      };
+        ws.onopen = () => {
+          setWsConnected(true);
+        };
 
-      ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          // Refresh list & stats on any pipeline transition
-          fetchIncidents();
-          fetchStats();
+        ws.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data);
+            fetchIncidents();
+            fetchStats();
 
-          // If the message is about the currently active incident, refresh its detail view
-          if (selectedIdRef.current === msg.incident_id) {
-            fetchIncidentDetail(msg.incident_id);
+            if (selectedIdRef.current === msg.incident_id) {
+              fetchIncidentDetail(msg.incident_id);
+            }
+          } catch (e) {
+            // Heartbeat
           }
-        } catch (e) {
-          // ignore heartbeat pong
-        }
-      };
+        };
 
-      ws.onclose = () => {
+        ws.onclose = () => {
+          setWsConnected(false);
+          reconnectTimeout = setTimeout(connectWS, 3000);
+        };
+
+        ws.onerror = () => {
+          ws?.close();
+        };
+      } catch (e) {
         setWsConnected(false);
-        reconnectTimeout = setTimeout(connectWS, 3000);
-      };
-
-      ws.onerror = () => {
-        ws?.close();
-      };
+        reconnectTimeout = setTimeout(connectWS, 4000);
+      }
     };
 
     connectWS();
@@ -126,7 +140,7 @@ export const App: React.FC = () => {
   const handleSimulate = async (eventType?: string, scenario?: string) => {
     setIsSimulating(true);
     try {
-      const res = await fetch('/api/simulate', {
+      const res = await fetch(`${API_BASE}/api/simulate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ event_type: eventType, scenario: scenario }),
@@ -150,7 +164,7 @@ export const App: React.FC = () => {
     if (!selectedId) return;
     setIsLoadingAction(true);
     try {
-      const res = await fetch(`/api/incidents/${selectedId}/actions/${actionId}/approve`, {
+      const res = await fetch(`${API_BASE}/api/incidents/${selectedId}/actions/${actionId}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ analyst_comment: comment, approved_by: 'analyst' }),
@@ -171,7 +185,7 @@ export const App: React.FC = () => {
     if (!selectedId) return;
     setIsLoadingAction(true);
     try {
-      const res = await fetch(`/api/incidents/${selectedId}/actions/${actionId}/reject`, {
+      const res = await fetch(`${API_BASE}/api/incidents/${selectedId}/actions/${actionId}/reject`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ analyst_comment: comment, approved_by: 'analyst' }),
@@ -192,7 +206,7 @@ export const App: React.FC = () => {
     if (!selectedId) return;
     setIsLoadingAction(true);
     try {
-      const res = await fetch(`/api/incidents/${selectedId}/actions/${actionId}/rollback`, {
+      const res = await fetch(`${API_BASE}/api/incidents/${selectedId}/actions/${actionId}/rollback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ approved_by: 'analyst' }),
@@ -213,7 +227,7 @@ export const App: React.FC = () => {
     if (!selectedId) return;
     setIsLoadingAction(true);
     try {
-      const res = await fetch(`/api/incidents/${selectedId}/actions/approve-recommended`, {
+      const res = await fetch(`${API_BASE}/api/incidents/${selectedId}/actions/approve-recommended`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ approved_by: 'analyst' }),

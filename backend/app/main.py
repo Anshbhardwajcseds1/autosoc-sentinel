@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -30,9 +31,10 @@ async def lifespan(app: FastAPI):
     logger.info("Initializing database schema...")
     init_db()
     logger.info(
-        "AutoSOC Sentinel active. Mock mode: %s | LLM mock: %s",
+        "AutoSOC Sentinel active. Mock mode: %s | LLM mock: %s | Port: %s",
         settings.mock_mode,
         settings.llm_mock_mode,
+        settings.server_port,
     )
     yield
     logger.info("AutoSOC Sentinel shutting down.")
@@ -46,13 +48,27 @@ app = FastAPI(
 )
 
 settings = get_settings()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+
+# Configure CORS for Vercel, Render, and Localhost
+origins = settings.cors_origins if isinstance(settings.cors_origins, list) else [settings.cors_origins]
+
+if "*" in origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_origin_regex=r"https://.*\.vercel\.app|http://localhost.*|https://.*\.onrender\.com",
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 # Register routers
 app.include_router(events_router)
@@ -84,4 +100,11 @@ def health_check():
         "version": "1.0.0",
         "mock_mode": settings.mock_mode,
         "llm_mock_mode": settings.llm_mock_mode,
+        "port": settings.server_port,
     }
+
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", settings.server_port))
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=False)
