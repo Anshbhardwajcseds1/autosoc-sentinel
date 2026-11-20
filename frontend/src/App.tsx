@@ -80,7 +80,7 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     let ws: WebSocket | null = null;
-    let reconnectTimeout: any = null;
+    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 
     const connectWS = () => {
       const wsUrl = getWebSocketUrl();
@@ -130,7 +130,7 @@ export const App: React.FC = () => {
 
     return () => {
       ws?.close();
-      clearTimeout(reconnectTimeout);
+      if (reconnectTimeout !== null) clearTimeout(reconnectTimeout);
       clearInterval(interval);
     };
   }, []);

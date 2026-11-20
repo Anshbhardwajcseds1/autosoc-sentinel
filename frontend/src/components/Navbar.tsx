@@ -1,34 +1,50 @@
 import React, { useState } from 'react';
-import { Shield, Radio, Play, ChevronDown, Flame, Bug, Terminal, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Shield, Flame, ChevronDown } from 'lucide-react';
 
+/** Scenario definition for simulated attack events. */
+interface Scenario {
+  type: string;
+  scenario: string;
+  label: string;
+  desc: string;
+}
+
+/** Props for the top navigation bar component. */
 interface NavbarProps {
+  /** Whether the WebSocket live feed is active. */
   wsConnected: boolean;
+  /** Callback to trigger a simulation; optionally scoped to a scenario. */
   onSimulate: (eventType?: string, scenario?: string) => Promise<void>;
+  /** Whether a simulation is currently in progress. */
   isSimulating: boolean;
 }
 
+/** Available attack scenarios for simulation. */
+const SCENARIOS: Scenario[] = [
+  { type: 'phishing_email', scenario: 'credential_phishing', label: '🎣 Phishing: Credential Harvesting', desc: 'Urgent password reset link' },
+  { type: 'phishing_email', scenario: 'ceo_fraud', label: '💼 Phishing: CEO Wire Fraud', desc: 'Urgent $25k transfer request' },
+  { type: 'phishing_email', scenario: 'malware_attachment', label: '📎 Phishing: Malware Attachment', desc: 'Invoice with executable payload' },
+  { type: 'phishing_email', scenario: 'benign_email', label: '✉️ Email: Benign Newsletter (FP Test)', desc: 'Valid GitHub weekly digest' },
+  { type: 'auth_log', scenario: 'brute_force', label: '🔨 Auth: Brute Force Attack', desc: '60+ rapid failed password attempts' },
+  { type: 'auth_log', scenario: 'impossible_travel', label: '✈️ Auth: Impossible Travel', desc: 'US and RU logins within 10 min' },
+  { type: 'auth_log', scenario: 'credential_stuffing', label: '🤖 Auth: Credential Stuffing', desc: 'Automated multi-user login attempts' },
+  { type: 'auth_log', scenario: 'normal_login', label: '👤 Auth: Normal SSO Login (FP Test)', desc: 'Valid MFA authenticated session' },
+  { type: 'malware_alert', scenario: 'known_malware', label: '🦠 Endpoint: Known Trojan Executable', desc: 'CrowdStrike Trojan.GenericKD match' },
+  { type: 'malware_alert', scenario: 'clean_file', label: '📄 Endpoint: Clean PDF Alert (FP Test)', desc: 'Legitimate document falsely flagged' },
+];
+
+/**
+ * Top navigation bar with branding, WebSocket live status, and attack simulator controls.
+ */
 export const Navbar: React.FC<NavbarProps> = ({ wsConnected, onSimulate, isSimulating }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
-  const scenarios = [
-    { type: 'phishing_email', scenario: 'credential_phishing', label: '🎣 Phishing: Credential Harvesting', desc: 'Urgent password reset link' },
-    { type: 'phishing_email', scenario: 'ceo_fraud', label: '💼 Phishing: CEO Wire Fraud', desc: 'Urgent $25k transfer request' },
-    { type: 'phishing_email', scenario: 'malware_attachment', label: '📎 Phishing: Malware Attachment', desc: 'Invoice with executable payload' },
-    { type: 'phishing_email', scenario: 'benign_email', label: '✉️ Email: Benign Newsletter (FP Test)', desc: 'Valid GitHub weekly digest' },
-    { type: 'auth_log', scenario: 'brute_force', label: '🔨 Auth: Brute Force Attack', desc: '60+ rapid failed password attempts' },
-    { type: 'auth_log', scenario: 'impossible_travel', label: '✈️ Auth: Impossible Travel', desc: 'US and RU logins within 10 min' },
-    { type: 'auth_log', scenario: 'credential_stuffing', label: '🤖 Auth: Credential Stuffing', desc: 'Automated multi-user login attempts' },
-    { type: 'auth_log', scenario: 'normal_login', label: '👤 Auth: Normal SSO Login (FP Test)', desc: 'Valid MFA authenticated session' },
-    { type: 'malware_alert', scenario: 'known_malware', label: '🦠 Endpoint: Known Trojan Executable', desc: 'CrowdStrike Trojan.GenericKD match' },
-    { type: 'malware_alert', scenario: 'clean_file', label: '📄 Endpoint: Clean PDF Alert (FP Test)', desc: 'Legitimate document falsely flagged' },
-  ];
-
   return (
-    <header className="border-b border-slate-800 bg-[#0d1322]/90 backdrop-blur sticky top-0 z-50 px-6 py-3.5 flex items-center justify-between">
+    <header role="banner" className="border-b border-slate-800 bg-[#0d1322]/90 backdrop-blur sticky top-0 z-50 px-6 py-3.5 flex items-center justify-between">
       {/* Brand & SOC Status */}
       <div className="flex items-center space-x-4">
         <div className="flex items-center space-x-3">
-          <div className="p-2 bg-blue-500/10 border border-blue-500/20 rounded-lg text-blue-400">
+          <div className="p-2 bg-blue-500/10 border border-blue-500/20 rounded-lg text-blue-400" aria-hidden="true">
             <Shield className="w-6 h-6" />
           </div>
           <div>
@@ -47,7 +63,10 @@ export const Navbar: React.FC<NavbarProps> = ({ wsConnected, onSimulate, isSimul
 
         {/* Live Stream Status Indicator */}
         <div className="hidden md:flex items-center space-x-2 border-l border-slate-800 pl-4 py-1">
-          <span className="relative flex h-2.5 w-2.5">
+          <span
+            className="relative flex h-2.5 w-2.5"
+            aria-hidden="true"
+          >
             {wsConnected ? (
               <>
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -57,20 +76,26 @@ export const Navbar: React.FC<NavbarProps> = ({ wsConnected, onSimulate, isSimul
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
             )}
           </span>
-          <span className="text-xs font-mono text-slate-300">
+          <span
+            role="status"
+            aria-live="polite"
+            className="text-xs font-mono text-slate-300"
+          >
             {wsConnected ? 'LIVE FEED ACTIVE' : 'CONNECTING WS...'}
           </span>
         </div>
       </div>
 
       {/* Simulator Controls */}
-      <div className="flex items-center space-x-3 relative">
+      <nav aria-label="Attack simulation controls" className="flex items-center space-x-3 relative">
         <button
           onClick={() => onSimulate()}
           disabled={isSimulating}
-          className="flex items-center space-x-2 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 disabled:opacity-50 text-white font-medium text-xs px-4 py-2 rounded-lg shadow-lg shadow-red-950/50 transition border border-red-500/30"
+          aria-label={isSimulating ? 'Simulation in progress, please wait' : 'Simulate a random attack scenario'}
+          aria-busy={isSimulating}
+          className="flex items-center space-x-2 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 disabled:opacity-50 text-white font-medium text-xs px-4 py-2 rounded-lg shadow-lg shadow-red-950/50 transition border border-red-500/30 focus-visible:outline-2 focus-visible:outline-blue-500"
         >
-          <Flame className={`w-4 h-4 ${isSimulating ? 'animate-spin' : ''}`} />
+          <Flame className={`w-4 h-4 ${isSimulating ? 'animate-spin' : ''}`} aria-hidden="true" />
           <span>{isSimulating ? 'Analyzing...' : 'Simulate Random Attack'}</span>
         </button>
 
@@ -78,26 +103,35 @@ export const Navbar: React.FC<NavbarProps> = ({ wsConnected, onSimulate, isSimul
         <div className="relative">
           <button
             onClick={() => setDropdownOpen(!dropdownOpen)}
-            className="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-3 py-2 rounded-lg border border-slate-700 transition"
+            aria-label="Open attack scenario selector"
+            aria-expanded={dropdownOpen}
+            aria-haspopup="listbox"
+            className="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-3 py-2 rounded-lg border border-slate-700 transition focus-visible:outline-2 focus-visible:outline-blue-500"
           >
             <span>Scenario</span>
-            <ChevronDown className="w-3.5 h-3.5" />
+            <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
 
           {dropdownOpen && (
-            <div className="absolute right-0 mt-2 w-80 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden z-50 max-h-96 overflow-y-auto">
+            <div
+              role="listbox"
+              aria-label="Attack scenario options"
+              className="absolute right-0 mt-2 w-80 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden z-50 max-h-96 overflow-y-auto"
+            >
               <div className="px-3 py-2 bg-slate-950 border-b border-slate-800 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                 Select Telemetry Scenario
               </div>
               <div className="py-1">
-                {scenarios.map((s, idx) => (
+                {SCENARIOS.map((s, idx) => (
                   <button
                     key={idx}
+                    role="option"
+                    aria-selected={false}
                     onClick={() => {
                       setDropdownOpen(false);
                       onSimulate(s.type, s.scenario);
                     }}
-                    className="w-full text-left px-3 py-2 hover:bg-slate-800/80 transition flex flex-col border-b border-slate-800/50 last:border-0"
+                    className="w-full text-left px-3 py-2 hover:bg-slate-800/80 transition flex flex-col border-b border-slate-800/50 last:border-0 focus-visible:outline-2 focus-visible:outline-blue-500 focus-visible:bg-slate-800/60"
                   >
                     <span className="text-xs font-medium text-slate-200">{s.label}</span>
                     <span className="text-[11px] text-slate-400">{s.desc}</span>
@@ -107,7 +141,7 @@ export const Navbar: React.FC<NavbarProps> = ({ wsConnected, onSimulate, isSimul
             </div>
           )}
         </div>
-      </div>
+      </nav>
     </header>
   );
 };

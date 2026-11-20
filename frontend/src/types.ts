@@ -17,7 +17,7 @@ export interface ThreatIntelResult {
   source: string;
   reputation_score: number;
   malicious: boolean;
-  raw_response?: any;
+  raw_response?: Record<string, unknown>;
   cached: boolean;
   queried_at: string;
 }
@@ -58,7 +58,7 @@ export interface AuditLog {
   incident_id?: string;
   actor: string;
   action: string;
-  details?: any;
+  details?: Record<string, unknown>;
   timestamp: string;
 }
 

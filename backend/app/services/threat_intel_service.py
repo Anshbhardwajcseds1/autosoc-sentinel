@@ -36,6 +36,7 @@ class ThreatIntelService:
         self.db = db_session
 
     def _get_db(self) -> Session:
+        """Return the injected session if present, otherwise open a new one."""
         if self.db is not None:
             return self.db
         return SessionLocal()
